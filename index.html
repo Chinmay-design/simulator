@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>T Flip-Flop &amp; Adder Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A1410;
+    --bg-panel:#0F1F17;
+    --bg-panel-2:#122A1E;
+    --bg-controls:#0D1C15;
+    --trace:#2A7A50;
+    --trace-dim:#173B29;
+    --copper:#E8A94C;
+    --copper-dim:#8A6A38;
+    --copper-glow:rgba(232,169,76,0.38);
+    --text:#EAF2EC;
+    --text-muted:#82A491;
+    --text-dim:#4F6A5B;
+    --border:#1D3728;
+    --border-bright:#2E5A40;
+    --danger:#D9705A;
+    --radius:10px;
+    --font-mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --font-sans:'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+  :root:not([data-theme="light"]){ }
+  :root[data-theme="light"]{
+    --bg:#EFEDE3; --bg-panel:#F7F5EC; --bg-panel-2:#EFEBDD; --bg-controls:#F2EFE2;
+    --trace:#3F8F63; --trace-dim:#CFE3D5; --copper:#B9772E; --copper-dim:#D9B98A;
+    --copper-glow:rgba(185,119,46,0.25); --text:#1B2A22; --text-muted:#4E6459;
+    --text-dim:#8CA096; --border:#D8D2BE; --border-bright:#B9AE8C;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#EFEDE3; --bg-panel:#F7F5EC; --bg-panel-2:#EFEBDD; --bg-controls:#F2EFE2;
+      --trace:#3F8F63; --trace-dim:#CFE3D5; --copper:#B9772E; --copper-dim:#D9B98A;
+      --copper-glow:rgba(185,119,46,0.25); --text:#1B2A22; --text-muted:#4E6459;
+      --text-dim:#8CA096; --border:#D8D2BE; --border-bright:#B9AE8C;
+    }
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-sans);
+    min-height:100vh;
+    padding:28px 16px 60px;
+  }
+  .app{
+    max-width:1180px;
+    margin:0 auto;
+  }
+  .masthead{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:10px;
+    padding:2px 4px 20px;
+    border-bottom:1px dashed var(--border-bright);
+    margin-bottom:20px;
+  }
+  .masthead h1{
+    font-family:var(--font-mono);
+    font-weight:600;
+    font-size:22px;
+    letter-spacing:0.3px;
+    margin:0;
+  }
+  .masthead .tag{
+    font-family:var(--font-mono);
+    font-size:12px;
+    color:var(--text-muted);
+  }
+  nav.tabs{
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+    margin-bottom:18px;
+  }
+  nav.tabs button{
+    font-family:var(--font-mono);
+    font-size:12.5px;
+    letter-spacing:0.2px;
+    background:var(--bg-panel);
+    color:var(--text-muted);
+    border:1px solid var(--border);
+    border-radius:7px;
+    padding:9px 14px;
+    cursor:pointer;
+    transition:border-color .15s ease, color .15s ease, background .15s ease;
+  }
+  nav.tabs button:hover{ color:var(--text); border-color:var(--border-bright); }
+  nav.tabs button.active{
+    color:var(--bg);
+    background:var(--copper);
+    border-color:var(--copper);
+    font-weight:600;
+  }
+  .module{ display:none; }
+  .module.active{ display:block; animation:fade .25s ease; }
+  @keyframes fade{ from{opacity:0; transform:translateY(3px);} to{opacity:1; transform:translateY(0);} }
+
+  .module-title{
+    font-family:var(--font-mono);
+    font-size:16px;
+    font-weight:600;
+    margin:0 0 4px;
+  }
+  .module-sub{
+    font-size:13px;
+    color:var(--text-muted);
+    margin:0 0 16px;
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns:1.55fr 1fr;
+    gap:14px;
+  }
+  @media (max-width:800px){ .grid{ grid-template-columns:1fr; } }
+
+  .panel{
+    background:var(--bg-panel);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:16px;
+  }
+  .diagram-panel{
+    position:relative;
+    background-image:
+      radial-gradient(var(--trace-dim) 1px, transparent 1.3px);
+    background-size:18px 18px;
+    min-height:300px;
+    display:flex;
+    flex-direction:column;
+  }
+  .diagram-panel svg{ width:100%; height:auto; flex:1; }
+
+  .mode-toggle{
+    position:absolute;
+    top:10px; left:10px;
+    display:flex; gap:4px;
+    background:var(--bg-controls);
+    border:1px solid var(--border);
+    border-radius:7px;
+    padding:3px;
+    z-index:2;
+  }
+  .mode-toggle button{
+    font-family:var(--font-mono);
+    font-size:11px;
+    padding:5px 10px;
+    border-radius:5px;
+    border:none;
+    background:transparent;
+    color:var(--text-muted);
+    cursor:pointer;
+  }
+  .mode-toggle button.active{
+    background:var(--copper);
+    color:var(--bg);
+    font-weight:600;
+  }
+
+  .explain-panel h3{
+    font-family:var(--font-mono);
+    font-size:12px;
+    letter-spacing:0.5px;
+    color:var(--copper);
+    margin:0 0 10px;
+    padding-bottom:8px;
+    border-bottom:1px dashed var(--border-bright);
+  }
+  .explain-panel .line{
+    font-size:13.5px;
+    line-height:1.65;
+    margin-bottom:8px;
+    color:var(--text);
+  }
+  .explain-panel .line.dim{ color:var(--text-muted); font-size:12.5px; }
+  .explain-panel .eqn{
+    font-family:var(--font-mono);
+    font-size:13px;
+    background:var(--bg-panel-2);
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:8px 10px;
+    margin:6px 0;
+    color:var(--copper);
+  }
+  .chip-row{ display:flex; gap:5px; flex-wrap:wrap; margin-top:10px; }
+  .chip{
+    font-family:var(--font-mono);
+    font-size:11px;
+    padding:3px 7px;
+    border-radius:5px;
+    border:1px solid var(--border);
+    color:var(--text-dim);
+  }
+  .chip.on{ border-color:var(--copper); color:var(--copper); }
+
+  .controls-panel{
+    margin-top:14px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:22px;
+    align-items:flex-end;
+    justify-content:space-between;
+    background:var(--bg-controls);
+  }
+  .control-group{ display:flex; flex-direction:column; gap:6px; }
+  .control-group .cg-label{
+    font-family:var(--font-mono);
+    font-size:11px;
+    color:var(--text-muted);
+    letter-spacing:0.4px;
+  }
+  .toggles{ display:flex; gap:8px; }
+  .bit-toggle{
+    width:42px; height:42px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--bg-panel-2);
+    color:var(--text-muted);
+    font-family:var(--font-mono);
+    font-size:16px;
+    font-weight:600;
+    cursor:pointer;
+    transition:all .12s ease;
+  }
+  .bit-toggle:hover{ border-color:var(--border-bright); }
+  .bit-toggle.on{
+    background:var(--copper);
+    color:var(--bg);
+    border-color:var(--copper);
+    box-shadow:0 0 14px var(--copper-glow);
+  }
+  .bit-label{ font-size:10px; text-align:center; color:var(--text-dim); margin-top:3px; font-family:var(--font-mono); }
+  .action-btn{
+    font-family:var(--font-mono);
+    font-size:13px;
+    font-weight:600;
+    padding:11px 18px;
+    border-radius:8px;
+    border:1px solid var(--copper);
+    background:transparent;
+    color:var(--copper);
+    cursor:pointer;
+    transition:all .12s ease;
+    white-space:nowrap;
+  }
+  .action-btn:hover{ background:var(--copper); color:var(--bg); }
+  .action-btn:active{ transform:scale(0.97); }
+  .reset-btn{
+    font-family:var(--font-mono);
+    font-size:12px;
+    padding:9px 14px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:transparent;
+    color:var(--text-muted);
+    cursor:pointer;
+  }
+  .reset-btn:hover{ border-color:var(--border-bright); color:var(--text); }
+
+  /* SVG wire + gate styling */
+  .wire{ stroke:var(--trace); stroke-width:2.5; fill:none; transition:stroke .15s ease; }
+  .wire.on{ stroke:var(--copper); filter:drop-shadow(0 0 3px var(--copper-glow)); }
+  .gate{ stroke:var(--border-bright); stroke-width:1.6; fill:var(--bg-panel-2); }
+  .gate.active{ stroke:var(--copper); }
+  .label{ font-family:var(--font-mono); font-size:12px; fill:var(--text-muted); }
+  .label.bright{ fill:var(--text); }
+  .valtxt{ font-family:var(--font-mono); font-size:13px; font-weight:600; fill:var(--text-dim); }
+  .valtxt.on{ fill:var(--copper); }
+  .blocklabel{ font-family:var(--font-mono); font-size:13px; font-weight:600; fill:var(--text); letter-spacing:0.5px; }
+  .pad{ fill:var(--bg-panel); stroke:var(--border-bright); stroke-width:1.2; }
+  .pad.on{ fill:var(--copper); stroke:var(--copper); }
+
+  footer{
+    margin-top:30px;
+    text-align:center;
+    font-family:var(--font-mono);
+    font-size:11px;
+    color:var(--text-dim);
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="masthead">
+    <h1>&#9679; SEQUENTIAL &amp; ARITHMETIC LOGIC LAB</h1>
+    <span class="tag">T Flip-Flop &middot; Half Adder &middot; Full Adder &middot; 4-Bit Adder</span>
+  </div>
+
+  <nav class="tabs">
+    <button data-tab="tff" class="active">T FLIP-FLOP</button>
+    <button data-tab="ha">HALF ADDER</button>
+    <button data-tab="fa">FULL ADDER</button>
+    <button data-tab="app4">4-BIT ADDER APPLICATION</button>
+  </nav>
+
+  <!-- ============ T FLIP-FLOP ============ -->
+  <section class="module active" id="tff">
+    <p class="module-title">T Flip-Flop</p>
+    <p class="module-sub">Edge-triggered toggle flip-flop &mdash; Q changes state on a clock pulse only if T = 1.</p>
+    <div class="grid">
+      <div class="panel diagram-panel">
+        <div class="mode-toggle" data-group="tff">
+          <button class="active" data-mode="explore">Explore</button>
+          <button data-mode="explain">Explain</button>
+        </div>
+        <svg viewBox="0 0 700 340" xmlns="http://www.w3.org/2000/svg">
+          <path id="tff-wire-t" class="wire" d="M 60 130 H 240"/>
+          <path id="tff-wire-clk" class="wire" d="M 60 250 H 200 V 220 H 240"/>
+          <path id="tff-wire-q" class="wire" d="M 400 130 H 560"/>
+          <path id="tff-wire-qn" class="wire" d="M 400 250 H 560"/>
+          <rect x="240" y="90" width="160" height="180" rx="6" class="gate" id="tff-block"/>
+          <text x="320" y="185" text-anchor="middle" class="blocklabel">T FLIP-FLOP</text>
+          <text x="256" y="126" class="label">T</text>
+          <text x="256" y="266" class="label">CLK &#9650;</text>
+          <text x="374" y="126" text-anchor="end" class="label">Q</text>
+          <text x="374" y="266" text-anchor="end" class="label">Q&#772;</text>
+          <text id="tff-tval" x="48" y="120" text-anchor="end" class="valtxt">0</text>
+          <text id="tff-qval" x="572" y="120" class="valtxt">0</text>
+          <text id="tff-qnval" x="572" y="240" class="valtxt">1</text>
+          <circle id="tff-clkpulse" cx="60" cy="250" r="6" class="pad"/>
+        </svg>
+      </div>
+      <div class="panel explain-panel">
+        <h3>STATE &amp; EXPLANATION</h3>
+        <div id="tff-explain"></div>
+        <div class="chip-row" id="tff-history"></div>
+      </div>
+    </div>
+    <div class="panel controls-panel">
+      <div class="control-group">
+        <span class="cg-label">TOGGLE INPUT</span>
+        <div class="toggles">
+          <div><button class="bit-toggle" id="tff-t" data-val="0">0</button><div class="bit-label">T</div></div>
+        </div>
+      </div>
+      <div class="control-group">
+        <span class="cg-label">CLOCK</span>
+        <button class="action-btn" id="tff-clock">&#9889; PULSE CLOCK</button>
+      </div>
+      <div class="control-group">
+        <span class="cg-label">&nbsp;</span>
+        <button class="reset-btn" id="tff-reset">Reset Q = 0</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HALF ADDER ============ -->
+  <section class="module" id="ha">
+    <p class="module-title">Half Adder</p>
+    <p class="module-sub">Adds two single bits: Sum = A &oplus; B, Carry = A &middot; B.</p>
+    <div class="grid">
+      <div class="panel diagram-panel">
+        <div class="mode-toggle" data-group="ha">
+          <button class="active" data-mode="explore">Explore</button>
+          <button data-mode="explain">Explain</button>
+        </div>
+        <svg viewBox="0 0 700 340" xmlns="http://www.w3.org/2000/svg">
+          <path class="wire" id="ha-wire-a1" d="M 60 100 H 220 V 140 H 260"/>
+          <path class="wire" id="ha-wire-a2" d="M 60 100 H 180 V 230 H 260"/>
+          <path class="wire" id="ha-wire-b1" d="M 60 260 H 220 V 170 H 260"/>
+          <path class="wire" id="ha-wire-b2" d="M 60 260 H 200 V 260 H 260"/>
+          <path class="wire" id="ha-wire-sum" d="M 360 155 H 560"/>
+          <path class="wire" id="ha-wire-carry" d="M 360 260 H 560"/>
+          <path class="gate" id="ha-xor" d="M 260 120 Q 300 155 260 190 Q 285 155 310 155 Q 340 155 360 155 Q 340 155 310 155 Q 285 155 260 120 Z"/>
+          <path class="gate" id="ha-and" d="M 260 225 H 300 A 35 35 0 0 1 300 295 H 260 Z"/>
+          <text x="290" y="160" text-anchor="middle" class="label bright">XOR</text>
+          <text x="285" y="264" text-anchor="middle" class="label bright">AND</text>
+          <text x="48" y="105" text-anchor="end" class="label">A</text>
+          <text x="48" y="265" text-anchor="end" class="label">B</text>
+          <text x="574" y="160" class="label">SUM</text>
+          <text x="574" y="265" class="label">CARRY</text>
+          <text id="ha-aval" x="46" y="90" text-anchor="end" class="valtxt">0</text>
+          <text id="ha-bval" x="46" y="250" text-anchor="end" class="valtxt">0</text>
+          <text id="ha-sumval" x="632" y="160" class="valtxt">0</text>
+          <text id="ha-carryval" x="632" y="265" class="valtxt">0</text>
+        </svg>
+      </div>
+      <div class="panel explain-panel">
+        <h3>TRUTH &amp; EXPLANATION</h3>
+        <div id="ha-explain"></div>
+      </div>
+    </div>
+    <div class="panel controls-panel">
+      <div class="control-group">
+        <span class="cg-label">DATA INPUTS</span>
+        <div class="toggles">
+          <div><button class="bit-toggle" id="ha-a" data-val="0">0</button><div class="bit-label">A</div></div>
+          <div><button class="bit-toggle" id="ha-b" data-val="0">0</button><div class="bit-label">B</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FULL ADDER ============ -->
+  <section class="module" id="fa">
+    <p class="module-title">Full Adder</p>
+    <p class="module-sub">Adds two bits plus a carry-in: Sum = A &oplus; B &oplus; Cin, Cout = AB + BCin + ACin.</p>
+    <div class="grid">
+      <div class="panel diagram-panel">
+        <div class="mode-toggle" data-group="fa">
+          <button class="active" data-mode="explore">Explore</button>
+          <button data-mode="explain">Explain</button>
+        </div>
+        <svg viewBox="0 0 700 340" xmlns="http://www.w3.org/2000/svg">
+          <path class="wire" id="fa-wire-a" d="M 60 90 H 230"/>
+          <path class="wire" id="fa-wire-b" d="M 60 170 H 230"/>
+          <path class="wire" id="fa-wire-cin" d="M 60 250 H 230"/>
+          <path class="wire" id="fa-wire-sum" d="M 400 130 H 560"/>
+          <path class="wire" id="fa-wire-cout" d="M 400 230 H 560"/>
+          <path d="M 230 60 L 340 60 L 400 170 L 340 280 L 230 280 Z" class="gate" id="fa-block"/>
+          <text x="300" y="175" text-anchor="middle" class="blocklabel">FULL ADDER</text>
+          <text x="246" y="86" class="label">A</text>
+          <text x="246" y="166" class="label">B</text>
+          <text x="246" y="246" class="label">Cin</text>
+          <text x="374" y="126" text-anchor="end" class="label">SUM</text>
+          <text x="374" y="226" text-anchor="end" class="label">Cout</text>
+          <text id="fa-aval" x="48" y="80" text-anchor="end" class="valtxt">0</text>
+          <text id="fa-bval" x="48" y="160" text-anchor="end" class="valtxt">0</text>
+          <text id="fa-cinval" x="48" y="240" text-anchor="end" class="valtxt">0</text>
+          <text id="fa-sumval" x="572" y="120" class="valtxt">0</text>
+          <text id="fa-coutval" x="572" y="220" class="valtxt">0</text>
+        </svg>
+      </div>
+      <div class="panel explain-panel">
+        <h3>TRUTH &amp; EXPLANATION</h3>
+        <div id="fa-explain"></div>
+      </div>
+    </div>
+    <div class="panel controls-panel">
+      <div class="control-group">
+        <span class="cg-label">DATA INPUTS</span>
+        <div class="toggles">
+          <div><button class="bit-toggle" id="fa-a" data-val="0">0</button><div class="bit-label">A</div></div>
+          <div><button class="bit-toggle" id="fa-b" data-val="0">0</button><div class="bit-label">B</div></div>
+          <div><button class="bit-toggle" id="fa-cin" data-val="0">0</button><div class="bit-label">Cin</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 4-BIT ADDER APPLICATION ============ -->
+  <section class="module" id="app4">
+    <p class="module-title">Application: 4-Bit Ripple-Carry Binary Adder</p>
+    <p class="module-sub">Four Full Adders chained together add two 4-bit binary numbers, with each carry rippling into the next stage &mdash; the building block of an ALU.</p>
+    <div class="grid">
+      <div class="panel diagram-panel">
+        <div class="mode-toggle" data-group="app4">
+          <button class="active" data-mode="explore">Explore</button>
+          <button data-mode="explain">Explain</button>
+        </div>
+        <svg viewBox="0 0 700 300" xmlns="http://www.w3.org/2000/svg" id="app4-svg">
+          <!-- 4 FA blocks generated by JS -->
+        </svg>
+      </div>
+      <div class="panel explain-panel">
+        <h3>BINARY ADDITION</h3>
+        <div id="app4-explain"></div>
+      </div>
+    </div>
+    <div class="panel controls-panel">
+      <div class="control-group">
+        <span class="cg-label">NUMBER A (MSB &rarr; LSB)</span>
+        <div class="toggles">
+          <div><button class="bit-toggle" id="app4-a3" data-val="0">0</button><div class="bit-label">A3</div></div>
+          <div><button class="bit-toggle" id="app4-a2" data-val="0">0</button><div class="bit-label">A2</div></div>
+          <div><button class="bit-toggle" id="app4-a1" data-val="0">0</button><div class="bit-label">A1</div></div>
+          <div><button class="bit-toggle" id="app4-a0" data-val="0">0</button><div class="bit-label">A0</div></div>
+        </div>
+      </div>
+      <div class="control-group">
+        <span class="cg-label">NUMBER B (MSB &rarr; LSB)</span>
+        <div class="toggles">
+          <div><button class="bit-toggle" id="app4-b3" data-val="0">0</button><div class="bit-label">B3</div></div>
+          <div><button class="bit-toggle" id="app4-b2" data-val="0">0</button><div class="bit-label">B2</div></div>
+          <div><button class="bit-toggle" id="app4-b1" data-val="0">0</button><div class="bit-label">B1</div></div>
+          <div><button class="bit-toggle" id="app4-b0" data-val="0">0</button><div class="bit-label">B0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>DIGITAL LOGIC LAB &middot; T FLIP-FLOP &amp; ADDER SIMULATOR</footer>
+</div>
+
+<script>
+(function(){
+  // ---------- Tab switching ----------
+  const tabButtons = document.querySelectorAll('nav.tabs button');
+  const modules = document.querySelectorAll('.module');
+  tabButtons.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      tabButtons.forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      modules.forEach(m=>m.classList.remove('active'));
+      document.getElementById(btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // ---------- Mode toggles (Explore / Explain) ----------
+  const modes = {};
+  document.querySelectorAll('.mode-toggle').forEach(group=>{
+    const g = group.dataset.group;
+    modes[g] = 'explore';
+    group.querySelectorAll('button').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        group.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        modes[g] = btn.dataset.mode;
+        renderAll();
+      });
+    });
+  });
+
+  // ---------- Generic bit toggle wiring ----------
+  function wireToggle(id, cb){
+    const el = document.getElementById(id);
+    el.addEventListener('click', ()=>{
+      const v = el.dataset.val === '1' ? '0' : '1';
+      el.dataset.val = v;
+      el.textContent = v;
+      el.classList.toggle('on', v==='1');
+      cb();
+    });
+  }
+  function val(id){ return document.getElementById(id).dataset.val === '1' ? 1 : 0; }
+
+  function setWire(id, on){
+    const el = document.getElementById(id);
+    if(el) el.classList.toggle('on', !!on);
+  }
+  function setText(id, v, on){
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.textContent = v;
+    el.classList.toggle('on', !!on);
+  }
+
+  // ================= T FLIP-FLOP =================
+  let tffQ = 0;
+  let tffHistory = [];
+  wireToggle('tff-t', renderTFF);
+  document.getElementById('tff-clock').addEventListener('click', ()=>{
+    const t = val('tff-t');
+    const pulse = document.getElementById('tff-clkpulse');
+    pulse.classList.add('on');
+    setTimeout(()=>pulse.classList.remove('on'), 260);
+    const prevQ = tffQ;
+    if(t === 1){ tffQ = tffQ === 1 ? 0 : 1; }
+    tffHistory.push(tffQ);
+    if(tffHistory.length > 8) tffHistory.shift();
+    renderTFF(prevQ);
+  });
+  document.getElementById('tff-reset').addEventListener('click', ()=>{
+    tffQ = 0; tffHistory = [];
+    renderTFF();
+  });
+  function renderTFF(prevQ){
+    const t = val('tff-t');
+    const qn = tffQ === 1 ? 0 : 1;
+    setWire('tff-wire-t', t===1);
+    setWire('tff-wire-q', tffQ===1);
+    setWire('tff-wire-qn', qn===1);
+    setText('tff-tval', t, t===1);
+    setText('tff-qval', tffQ, tffQ===1);
+    setText('tff-qnval', qn, qn===1);
+
+    const hist = document.getElementById('tff-history');
+    hist.innerHTML = '';
+    tffHistory.forEach((v,i)=>{
+      const c = document.createElement('span');
+      c.className = 'chip' + (v===1?' on':'');
+      c.textContent = 'CLK'+(i+1)+': Q='+v;
+      hist.appendChild(c);
+    });
+
+    const exp = document.getElementById('tff-explain');
+    let html = '';
+    html += '<div class="line">Current state: <b>Q = '+tffQ+'</b>, Q&#772; = '+qn+'</div>';
+    html += '<div class="line dim">Input T = '+t+' &middot; waiting for next rising clock edge</div>';
+    if(modes['tff'] === 'explain'){
+      html += '<div class="eqn">Next Q = T &oplus; Q(current)</div>';
+      if(t===1){
+        html += '<div class="line">Since T = 1, the flip-flop <b>toggles</b>: on the next clock pulse Q will flip from its present value.</div>';
+      } else {
+        html += '<div class="line">Since T = 0, the flip-flop <b>holds</b> its state: Q will not change on the next clock pulse.</div>';
+      }
+      html += '<div class="line dim">A T flip-flop only changes on the rising edge of CLK &mdash; changing T alone does not change Q.</div>';
+    } else {
+      html += '<div class="line">Press <b>Pulse Clock</b> to apply a rising edge and update Q.</div>';
+    }
+    exp.innerHTML = html;
+  }
+  renderTFF();
+
+  // ================= HALF ADDER =================
+  ['ha-a','ha-b'].forEach(id=>wireToggle(id, renderHA));
+  function renderHA(){
+    const a = val('ha-a'), b = val('ha-b');
+    const sum = a ^ b, carry = a & b;
+    setWire('ha-wire-a1', a===1); setWire('ha-wire-a2', a===1);
+    setWire('ha-wire-b1', b===1); setWire('ha-wire-b2', b===1);
+    setWire('ha-wire-sum', sum===1); setWire('ha-wire-carry', carry===1);
+    document.getElementById('ha-xor').classList.toggle('active', sum===1);
+    document.getElementById('ha-and').classList.toggle('active', carry===1);
+    setText('ha-aval', a, a===1); setText('ha-bval', b, b===1);
+    setText('ha-sumval', sum, sum===1); setText('ha-carryval', carry, carry===1);
+
+    const exp = document.getElementById('ha-explain');
+    let html = '';
+    html += '<div class="line">A = '+a+', B = '+b+'</div>';
+    html += '<div class="eqn">SUM = A &oplus; B = '+sum+'</div>';
+    html += '<div class="eqn">CARRY = A &middot; B = '+carry+'</div>';
+    if(modes['ha']==='explain'){
+      html += '<div class="line dim">The XOR gate outputs 1 only when A and B differ &mdash; this gives the sum bit without carry.</div>';
+      html += '<div class="line dim">The AND gate outputs 1 only when both A and B are 1 &mdash; this is the carry produced by the addition.</div>';
+      html += '<div class="line">'+a+' + '+b+' = '+(a+b)+' in decimal &rarr; binary result "'+carry+''+sum+'"</div>';
+    }
+    exp.innerHTML = html;
+  }
+  renderHA();
+
+  // ================= FULL ADDER =================
+  ['fa-a','fa-b','fa-cin'].forEach(id=>wireToggle(id, renderFA));
+  function renderFA(){
+    const a = val('fa-a'), b = val('fa-b'), cin = val('fa-cin');
+    const sum = a ^ b ^ cin;
+    const cout = (a & b) | (b & cin) | (a & cin);
+    setWire('fa-wire-a', a===1); setWire('fa-wire-b', b===1); setWire('fa-wire-cin', cin===1);
+    setWire('fa-wire-sum', sum===1); setWire('fa-wire-cout', cout===1);
+    document.getElementById('fa-block').classList.toggle('active', sum===1 || cout===1);
+    setText('fa-aval', a, a===1); setText('fa-bval', b, b===1); setText('fa-cinval', cin, cin===1);
+    setText('fa-sumval', sum, sum===1); setText('fa-coutval', cout, cout===1);
+
+    const exp = document.getElementById('fa-explain');
+    let html = '';
+    html += '<div class="line">A = '+a+', B = '+b+', Cin = '+cin+'</div>';
+    html += '<div class="eqn">SUM = A &oplus; B &oplus; Cin = '+sum+'</div>';
+    html += '<div class="eqn">Cout = AB + BCin + ACin = '+cout+'</div>';
+    if(modes['fa']==='explain'){
+      const xor1 = a ^ b;
+      html += '<div class="line dim">Step 1: A &oplus; B = '+xor1+'</div>';
+      html += '<div class="line dim">Step 2: ('+xor1+') &oplus; Cin = '+sum+' &rarr; this is SUM</div>';
+      html += '<div class="line dim">Step 3: majority of {A, B, Cin} being 1 determines Cout = '+cout+'</div>';
+      html += '<div class="line">'+a+' + '+b+' + '+cin+' = '+(a+b+cin)+' in decimal &rarr; binary result "'+cout+''+sum+'"</div>';
+    }
+    exp.innerHTML = html;
+  }
+  renderFA();
+
+  // ================= 4-BIT ADDER APPLICATION =================
+  const app4bits = ['a3','a2','a1','a0','b3','b2','b1','b0'];
+  app4bits.forEach(b=>wireToggle('app4-'+b, renderApp4));
+
+  function buildApp4Diagram(){
+    const svg = document.getElementById('app4-svg');
+    let s = '';
+    const blockW = 110, blockGap = 40, startX = 40, top = 70, h = 140;
+    for(let i=0;i<4;i++){
+      const x = startX + i*(blockW+blockGap);
+      const idx = 3-i; // stage 0 = LSB (rightmost bit index0), drawn left(LSB) to right(MSB)? We'll draw LSB first (left) for ripple visualization
+      s += '<g id="fa-stage-'+i+'">';
+      s += '<path d="M '+x+' '+top+' L '+(x+blockW*0.62)+' '+top+' L '+(x+blockW)+' '+(top+h/2)+' L '+(x+blockW*0.62)+' '+(top+h)+' L '+x+' '+(top+h)+' Z" class="gate" id="app4-block-'+i+'"/>';
+      s += '<text x="'+(x+blockW*0.35)+'" y="'+(top+h/2+5)+'" text-anchor="middle" class="blocklabel" style="font-size:11px">FA'+i+'</text>';
+      // input labels A,B on top, Cin on left
+      s += '<text x="'+(x+18)+'" y="'+(top-8)+'" class="label" style="font-size:10px">A'+i+'</text>';
+      s += '<text x="'+(x+18)+'" y="'+(top+h+16)+'" class="label" style="font-size:10px">B'+i+'</text>';
+      s += '<text id="app4-aval-'+i+'" x="'+(x+18)+'" y="'+(top-18)+'" class="valtxt" style="font-size:12px">0</text>';
+      s += '<text id="app4-bval-'+i+'" x="'+(x+18)+'" y="'+(top+h+30)+'" class="valtxt" style="font-size:12px">0</text>';
+      // carry wire between stages
+      if(i<3){
+        s += '<path class="wire" id="app4-carry-'+i+'" d="M '+(x+blockW)+' '+(top+h/2)+' H '+(x+blockW+blockGap)+'"/>';
+        s += '<text x="'+(x+blockW+blockGap/2)+'" y="'+(top+h/2-8)+'" text-anchor="middle" class="label" style="font-size:9px">C'+(i+1)+'</text>';
+      }
+      // sum output going down
+      s += '<path class="wire" id="app4-sum-'+i+'" d="M '+(x+blockW*0.3)+' '+(top+h)+' V '+(top+h+55)+'"/>';
+      s += '<text id="app4-sumval-'+i+'" x="'+(x+blockW*0.3)+'" y="'+(top+h+72)+'" text-anchor="middle" class="valtxt" style="font-size:13px">0</text>';
+      s += '<text x="'+(x+blockW*0.3)+'" y="'+(top+h+88)+'" text-anchor="middle" class="label" style="font-size:9px">SUM'+i+'</text>';
+      s += '</g>';
+    }
+    // final carry out
+    const lastX = startX + 3*(blockW+blockGap) + blockW;
+    s += '<path class="wire" id="app4-cout" d="M '+lastX+' '+(top+h/2)+' H '+(lastX+40)+'"/>';
+    s += '<text id="app4-coutval" x="'+(lastX+55)+'" y="'+(top+h/2+5)+'" class="valtxt" style="font-size:13px">0</text>';
+    s += '<text x="'+(lastX+55)+'" y="'+(top+h/2-10)+'" class="label" style="font-size:9px">C4</text>';
+    // initial carry-in (0)
+    s += '<path class="wire" id="app4-cin0" d="M 10 '+(top+h/2)+' H '+startX+'"/>';
+    s += '<text x="6" y="'+(top+h/2+4)+'" text-anchor="end" class="label" style="font-size:9px">C0=0</text>';
+    svg.innerHTML = s;
+  }
+  buildApp4Diagram();
+
+  function renderApp4(){
+    const bits = {};
+    app4bits.forEach(b=>bits[b]=val('app4-'+b));
+    const A = [bits.a3,bits.a2,bits.a1,bits.a0]; // MSB..LSB
+    const B = [bits.b3,bits.b2,bits.b1,bits.b0];
+    let carry = 0;
+    const sums = [0,0,0,0];
+    const carries = [0,0,0,0]; // carry out of each stage, stage0 = LSB
+    // stage index i in diagram: i=0 is LSB (drawn leftmost), i=3 is MSB
+    for(let i=0;i<4;i++){
+      const bitIndex = 3-i; // A[3] is LSB
+      const a = A[bitIndex], b = B[bitIndex];
+      const s = a ^ b ^ carry;
+      const cout = (a&b)|(b&carry)|(a&carry);
+      sums[i] = s;
+      carries[i] = cout;
+      setText('app4-aval-'+i, a, a===1);
+      setText('app4-bval-'+i, b, b===1);
+      setText('app4-sumval-'+i, s, s===1);
+      setWire('app4-sum-'+i, s===1);
+      document.getElementById('app4-block-'+i).classList.toggle('active', s===1||cout===1);
+      if(i<3) setWire('app4-carry-'+i, cout===1);
+      carry = cout;
+    }
+    setText('app4-coutval', carry, carry===1);
+    setWire('app4-cout', carry===1);
+
+    const Adec = parseInt(A.join(''),2);
+    const Bdec = parseInt(B.join(''),2);
+    const sumBits = carry + '' + sums[3] + sums[2] + sums[1] + sums[0];
+    const Sdec = parseInt(sumBits,2);
+
+    const exp = document.getElementById('app4-explain');
+    let html = '';
+    html += '<div class="line">A = '+A.join('')+'<span class="dim"> ('+Adec+' dec)</span></div>';
+    html += '<div class="line">B = '+B.join('')+'<span class="dim"> ('+Bdec+' dec)</span></div>';
+    html += '<div class="eqn">SUM = '+sumBits+' &nbsp;=&nbsp; '+Sdec+' (decimal)</div>';
+    if(modes['app4']==='explain'){
+      html += '<div class="line dim">Addition starts at the least significant bit (FA0) with carry-in C0 = 0.</div>';
+      html += '<div class="line dim">Each stage\'s carry-out feeds the next stage\'s carry-in &mdash; this is the "ripple" in ripple-carry.</div>';
+      html += '<div class="line dim">C1='+carries[0]+', C2='+carries[1]+', C3='+carries[2]+', C4(final)='+carry+'</div>';
+      html += '<div class="line">This chain of Full Adders is exactly how a processor\'s ALU adds multi-bit binary numbers.</div>';
+    } else {
+      html += '<div class="line dim">Toggle A and B bits to see the carry ripple across the four Full Adder stages.</div>';
+    }
+    exp.innerHTML = html;
+  }
+  renderApp4();
+
+  function renderAll(){
+    renderTFF(); renderHA(); renderFA(); renderApp4();
+  }
+})();
+</script>
+</body>
+</html>
